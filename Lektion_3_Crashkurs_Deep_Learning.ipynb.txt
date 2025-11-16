@@ -1,0 +1,1332 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "toc_visible": true,
+      "authorship_tag": "ABX9TyNTn5McxRdVFmSNAuTCHS4v",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/VanishingRasengan/WahlfachKIWiSe2324/blob/main/Lektion_3_Crashkurs_Deep_Learning.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Classification and Regression Trees\n",
+        "Classification and Regression Trees (CART) are a set of supervised learning models used for problems involving classification and regression. In this chapter, you'll be introduced to the CART algorithm."
+      ],
+      "metadata": {
+        "id": "6GYqdpgiVh99"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Train your first classification tree\n",
+        "In this exercise you'll work with the Wisconsin Breast Cancer Dataset from the UCI machine learning repository. You'll predict whether a tumor is malignant or benign based on two features: the mean radius of the tumor (radius_mean) and its mean number of concave points (concave points_mean)."
+      ],
+      "metadata": {
+        "id": "hKwFJbt5OvQh"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Importing libraries\n",
+        "import numpy as np\n",
+        "import pandas as pd\n",
+        "import matplotlib.pyplot as plt\n",
+        "import sys, os, scipy, sklearn\n",
+        "import sklearn.metrics, sklearn.preprocessing, sklearn.model_selection, sklearn.tree, sklearn.linear_model, sklearn.cluster\n",
+        "!pip install mlxtend --upgrade --no-deps\n",
+        "\n",
+        "# importing the pathlib module - a handy library for working with the local file system in an object oriented way\n",
+        "from pathlib import Path\n",
+        "import pandas as pd\n",
+        "\n",
+        "# creating a path object of our data directory within the mounted Google Drive\n",
+        "wbc_path = Path('/content/')\n",
+        "\n",
+        "### to download the .csv file\n",
+        "!pip install wget\n",
+        "import wget\n",
+        "wget.download('https://assets.datacamp.com/production/repositories/1796/datasets/0eb6987cb9633e4d6aa6cfd11e00993d2387caa4/wbc.csv')\n",
+        "\n",
+        "# create another pathlib object with the path to the csv file\n",
+        "wbc_csv_path = wbc_path / 'wbc.csv'\n",
+        "wbc_df = pd.read_csv(wbc_csv_path)"
+      ],
+      "metadata": {
+        "id": "BIrZofhjBt8m"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "wbc_df"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 505
+        },
+        "id": "-opTbhX1JeF2",
+        "outputId": "5432e1a6-838d-47cb-9192-094a8949f7bd"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "           id diagnosis  radius_mean  texture_mean  perimeter_mean  area_mean  \\\n",
+              "0      842302         M        17.99         10.38          122.80     1001.0   \n",
+              "1      842517         M        20.57         17.77          132.90     1326.0   \n",
+              "2    84300903         M        19.69         21.25          130.00     1203.0   \n",
+              "3    84348301         M        11.42         20.38           77.58      386.1   \n",
+              "4    84358402         M        20.29         14.34          135.10     1297.0   \n",
+              "..        ...       ...          ...           ...             ...        ...   \n",
+              "564    926424         M        21.56         22.39          142.00     1479.0   \n",
+              "565    926682         M        20.13         28.25          131.20     1261.0   \n",
+              "566    926954         M        16.60         28.08          108.30      858.1   \n",
+              "567    927241         M        20.60         29.33          140.10     1265.0   \n",
+              "568     92751         B         7.76         24.54           47.92      181.0   \n",
+              "\n",
+              "     smoothness_mean  compactness_mean  concavity_mean  concave points_mean  \\\n",
+              "0            0.11840           0.27760         0.30010              0.14710   \n",
+              "1            0.08474           0.07864         0.08690              0.07017   \n",
+              "2            0.10960           0.15990         0.19740              0.12790   \n",
+              "3            0.14250           0.28390         0.24140              0.10520   \n",
+              "4            0.10030           0.13280         0.19800              0.10430   \n",
+              "..               ...               ...             ...                  ...   \n",
+              "564          0.11100           0.11590         0.24390              0.13890   \n",
+              "565          0.09780           0.10340         0.14400              0.09791   \n",
+              "566          0.08455           0.10230         0.09251              0.05302   \n",
+              "567          0.11780           0.27700         0.35140              0.15200   \n",
+              "568          0.05263           0.04362         0.00000              0.00000   \n",
+              "\n",
+              "     ...  texture_worst  perimeter_worst  area_worst  smoothness_worst  \\\n",
+              "0    ...          17.33           184.60      2019.0           0.16220   \n",
+              "1    ...          23.41           158.80      1956.0           0.12380   \n",
+              "2    ...          25.53           152.50      1709.0           0.14440   \n",
+              "3    ...          26.50            98.87       567.7           0.20980   \n",
+              "4    ...          16.67           152.20      1575.0           0.13740   \n",
+              "..   ...            ...              ...         ...               ...   \n",
+              "564  ...          26.40           166.10      2027.0           0.14100   \n",
+              "565  ...          38.25           155.00      1731.0           0.11660   \n",
+              "566  ...          34.12           126.70      1124.0           0.11390   \n",
+              "567  ...          39.42           184.60      1821.0           0.16500   \n",
+              "568  ...          30.37            59.16       268.6           0.08996   \n",
+              "\n",
+              "     compactness_worst  concavity_worst  concave points_worst  symmetry_worst  \\\n",
+              "0              0.66560           0.7119                0.2654          0.4601   \n",
+              "1              0.18660           0.2416                0.1860          0.2750   \n",
+              "2              0.42450           0.4504                0.2430          0.3613   \n",
+              "3              0.86630           0.6869                0.2575          0.6638   \n",
+              "4              0.20500           0.4000                0.1625          0.2364   \n",
+              "..                 ...              ...                   ...             ...   \n",
+              "564            0.21130           0.4107                0.2216          0.2060   \n",
+              "565            0.19220           0.3215                0.1628          0.2572   \n",
+              "566            0.30940           0.3403                0.1418          0.2218   \n",
+              "567            0.86810           0.9387                0.2650          0.4087   \n",
+              "568            0.06444           0.0000                0.0000          0.2871   \n",
+              "\n",
+              "     fractal_dimension_worst  Unnamed: 32  \n",
+              "0                    0.11890          NaN  \n",
+              "1                    0.08902          NaN  \n",
+              "2                    0.08758          NaN  \n",
+              "3                    0.17300          NaN  \n",
+              "4                    0.07678          NaN  \n",
+              "..                       ...          ...  \n",
+              "564                  0.07115          NaN  \n",
+              "565                  0.06637          NaN  \n",
+              "566                  0.07820          NaN  \n",
+              "567                  0.12400          NaN  \n",
+              "568                  0.07039          NaN  \n",
+              "\n",
+              "[569 rows x 33 columns]"
+            ],
+            "text/html": [
+              "\n",
+              "  <div id=\"df-5c91c3fd-4ea1-4029-ac75-7f2d51d48b13\">\n",
+              "    <div class=\"colab-df-container\">\n",
+              "      <div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>id</th>\n",
+              "      <th>diagnosis</th>\n",
+              "      <th>radius_mean</th>\n",
+              "      <th>texture_mean</th>\n",
+              "      <th>perimeter_mean</th>\n",
+              "      <th>area_mean</th>\n",
+              "      <th>smoothness_mean</th>\n",
+              "      <th>compactness_mean</th>\n",
+              "      <th>concavity_mean</th>\n",
+              "      <th>concave points_mean</th>\n",
+              "      <th>...</th>\n",
+              "      <th>texture_worst</th>\n",
+              "      <th>perimeter_worst</th>\n",
+              "      <th>area_worst</th>\n",
+              "      <th>smoothness_worst</th>\n",
+              "      <th>compactness_worst</th>\n",
+              "      <th>concavity_worst</th>\n",
+              "      <th>concave points_worst</th>\n",
+              "      <th>symmetry_worst</th>\n",
+              "      <th>fractal_dimension_worst</th>\n",
+              "      <th>Unnamed: 32</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>0</th>\n",
+              "      <td>842302</td>\n",
+              "      <td>M</td>\n",
+              "      <td>17.99</td>\n",
+              "      <td>10.38</td>\n",
+              "      <td>122.80</td>\n",
+              "      <td>1001.0</td>\n",
+              "      <td>0.11840</td>\n",
+              "      <td>0.27760</td>\n",
+              "      <td>0.30010</td>\n",
+              "      <td>0.14710</td>\n",
+              "      <td>...</td>\n",
+              "      <td>17.33</td>\n",
+              "      <td>184.60</td>\n",
+              "      <td>2019.0</td>\n",
+              "      <td>0.16220</td>\n",
+              "      <td>0.66560</td>\n",
+              "      <td>0.7119</td>\n",
+              "      <td>0.2654</td>\n",
+              "      <td>0.4601</td>\n",
+              "      <td>0.11890</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1</th>\n",
+              "      <td>842517</td>\n",
+              "      <td>M</td>\n",
+              "      <td>20.57</td>\n",
+              "      <td>17.77</td>\n",
+              "      <td>132.90</td>\n",
+              "      <td>1326.0</td>\n",
+              "      <td>0.08474</td>\n",
+              "      <td>0.07864</td>\n",
+              "      <td>0.08690</td>\n",
+              "      <td>0.07017</td>\n",
+              "      <td>...</td>\n",
+              "      <td>23.41</td>\n",
+              "      <td>158.80</td>\n",
+              "      <td>1956.0</td>\n",
+              "      <td>0.12380</td>\n",
+              "      <td>0.18660</td>\n",
+              "      <td>0.2416</td>\n",
+              "      <td>0.1860</td>\n",
+              "      <td>0.2750</td>\n",
+              "      <td>0.08902</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>2</th>\n",
+              "      <td>84300903</td>\n",
+              "      <td>M</td>\n",
+              "      <td>19.69</td>\n",
+              "      <td>21.25</td>\n",
+              "      <td>130.00</td>\n",
+              "      <td>1203.0</td>\n",
+              "      <td>0.10960</td>\n",
+              "      <td>0.15990</td>\n",
+              "      <td>0.19740</td>\n",
+              "      <td>0.12790</td>\n",
+              "      <td>...</td>\n",
+              "      <td>25.53</td>\n",
+              "      <td>152.50</td>\n",
+              "      <td>1709.0</td>\n",
+              "      <td>0.14440</td>\n",
+              "      <td>0.42450</td>\n",
+              "      <td>0.4504</td>\n",
+              "      <td>0.2430</td>\n",
+              "      <td>0.3613</td>\n",
+              "      <td>0.08758</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>3</th>\n",
+              "      <td>84348301</td>\n",
+              "      <td>M</td>\n",
+              "      <td>11.42</td>\n",
+              "      <td>20.38</td>\n",
+              "      <td>77.58</td>\n",
+              "      <td>386.1</td>\n",
+              "      <td>0.14250</td>\n",
+              "      <td>0.28390</td>\n",
+              "      <td>0.24140</td>\n",
+              "      <td>0.10520</td>\n",
+              "      <td>...</td>\n",
+              "      <td>26.50</td>\n",
+              "      <td>98.87</td>\n",
+              "      <td>567.7</td>\n",
+              "      <td>0.20980</td>\n",
+              "      <td>0.86630</td>\n",
+              "      <td>0.6869</td>\n",
+              "      <td>0.2575</td>\n",
+              "      <td>0.6638</td>\n",
+              "      <td>0.17300</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>4</th>\n",
+              "      <td>84358402</td>\n",
+              "      <td>M</td>\n",
+              "      <td>20.29</td>\n",
+              "      <td>14.34</td>\n",
+              "      <td>135.10</td>\n",
+              "      <td>1297.0</td>\n",
+              "      <td>0.10030</td>\n",
+              "      <td>0.13280</td>\n",
+              "      <td>0.19800</td>\n",
+              "      <td>0.10430</td>\n",
+              "      <td>...</td>\n",
+              "      <td>16.67</td>\n",
+              "      <td>152.20</td>\n",
+              "      <td>1575.0</td>\n",
+              "      <td>0.13740</td>\n",
+              "      <td>0.20500</td>\n",
+              "      <td>0.4000</td>\n",
+              "      <td>0.1625</td>\n",
+              "      <td>0.2364</td>\n",
+              "      <td>0.07678</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>...</th>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "      <td>...</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>564</th>\n",
+              "      <td>926424</td>\n",
+              "      <td>M</td>\n",
+              "      <td>21.56</td>\n",
+              "      <td>22.39</td>\n",
+              "      <td>142.00</td>\n",
+              "      <td>1479.0</td>\n",
+              "      <td>0.11100</td>\n",
+              "      <td>0.11590</td>\n",
+              "      <td>0.24390</td>\n",
+              "      <td>0.13890</td>\n",
+              "      <td>...</td>\n",
+              "      <td>26.40</td>\n",
+              "      <td>166.10</td>\n",
+              "      <td>2027.0</td>\n",
+              "      <td>0.14100</td>\n",
+              "      <td>0.21130</td>\n",
+              "      <td>0.4107</td>\n",
+              "      <td>0.2216</td>\n",
+              "      <td>0.2060</td>\n",
+              "      <td>0.07115</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>565</th>\n",
+              "      <td>926682</td>\n",
+              "      <td>M</td>\n",
+              "      <td>20.13</td>\n",
+              "      <td>28.25</td>\n",
+              "      <td>131.20</td>\n",
+              "      <td>1261.0</td>\n",
+              "      <td>0.09780</td>\n",
+              "      <td>0.10340</td>\n",
+              "      <td>0.14400</td>\n",
+              "      <td>0.09791</td>\n",
+              "      <td>...</td>\n",
+              "      <td>38.25</td>\n",
+              "      <td>155.00</td>\n",
+              "      <td>1731.0</td>\n",
+              "      <td>0.11660</td>\n",
+              "      <td>0.19220</td>\n",
+              "      <td>0.3215</td>\n",
+              "      <td>0.1628</td>\n",
+              "      <td>0.2572</td>\n",
+              "      <td>0.06637</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>566</th>\n",
+              "      <td>926954</td>\n",
+              "      <td>M</td>\n",
+              "      <td>16.60</td>\n",
+              "      <td>28.08</td>\n",
+              "      <td>108.30</td>\n",
+              "      <td>858.1</td>\n",
+              "      <td>0.08455</td>\n",
+              "      <td>0.10230</td>\n",
+              "      <td>0.09251</td>\n",
+              "      <td>0.05302</td>\n",
+              "      <td>...</td>\n",
+              "      <td>34.12</td>\n",
+              "      <td>126.70</td>\n",
+              "      <td>1124.0</td>\n",
+              "      <td>0.11390</td>\n",
+              "      <td>0.30940</td>\n",
+              "      <td>0.3403</td>\n",
+              "      <td>0.1418</td>\n",
+              "      <td>0.2218</td>\n",
+              "      <td>0.07820</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>567</th>\n",
+              "      <td>927241</td>\n",
+              "      <td>M</td>\n",
+              "      <td>20.60</td>\n",
+              "      <td>29.33</td>\n",
+              "      <td>140.10</td>\n",
+              "      <td>1265.0</td>\n",
+              "      <td>0.11780</td>\n",
+              "      <td>0.27700</td>\n",
+              "      <td>0.35140</td>\n",
+              "      <td>0.15200</td>\n",
+              "      <td>...</td>\n",
+              "      <td>39.42</td>\n",
+              "      <td>184.60</td>\n",
+              "      <td>1821.0</td>\n",
+              "      <td>0.16500</td>\n",
+              "      <td>0.86810</td>\n",
+              "      <td>0.9387</td>\n",
+              "      <td>0.2650</td>\n",
+              "      <td>0.4087</td>\n",
+              "      <td>0.12400</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>568</th>\n",
+              "      <td>92751</td>\n",
+              "      <td>B</td>\n",
+              "      <td>7.76</td>\n",
+              "      <td>24.54</td>\n",
+              "      <td>47.92</td>\n",
+              "      <td>181.0</td>\n",
+              "      <td>0.05263</td>\n",
+              "      <td>0.04362</td>\n",
+              "      <td>0.00000</td>\n",
+              "      <td>0.00000</td>\n",
+              "      <td>...</td>\n",
+              "      <td>30.37</td>\n",
+              "      <td>59.16</td>\n",
+              "      <td>268.6</td>\n",
+              "      <td>0.08996</td>\n",
+              "      <td>0.06444</td>\n",
+              "      <td>0.0000</td>\n",
+              "      <td>0.0000</td>\n",
+              "      <td>0.2871</td>\n",
+              "      <td>0.07039</td>\n",
+              "      <td>NaN</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "<p>569 rows × 33 columns</p>\n",
+              "</div>\n",
+              "      <button class=\"colab-df-convert\" onclick=\"convertToInteractive('df-5c91c3fd-4ea1-4029-ac75-7f2d51d48b13')\"\n",
+              "              title=\"Convert this dataframe to an interactive table.\"\n",
+              "              style=\"display:none;\">\n",
+              "        \n",
+              "  <svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\"viewBox=\"0 0 24 24\"\n",
+              "       width=\"24px\">\n",
+              "    <path d=\"M0 0h24v24H0V0z\" fill=\"none\"/>\n",
+              "    <path d=\"M18.56 5.44l.94 2.06.94-2.06 2.06-.94-2.06-.94-.94-2.06-.94 2.06-2.06.94zm-11 1L8.5 8.5l.94-2.06 2.06-.94-2.06-.94L8.5 2.5l-.94 2.06-2.06.94zm10 10l.94 2.06.94-2.06 2.06-.94-2.06-.94-.94-2.06-.94 2.06-2.06.94z\"/><path d=\"M17.41 7.96l-1.37-1.37c-.4-.4-.92-.59-1.43-.59-.52 0-1.04.2-1.43.59L10.3 9.45l-7.72 7.72c-.78.78-.78 2.05 0 2.83L4 21.41c.39.39.9.59 1.41.59.51 0 1.02-.2 1.41-.59l7.78-7.78 2.81-2.81c.8-.78.8-2.07 0-2.86zM5.41 20L4 18.59l7.72-7.72 1.47 1.35L5.41 20z\"/>\n",
+              "  </svg>\n",
+              "      </button>\n",
+              "      \n",
+              "  <style>\n",
+              "    .colab-df-container {\n",
+              "      display:flex;\n",
+              "      flex-wrap:wrap;\n",
+              "      gap: 12px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert {\n",
+              "      background-color: #E8F0FE;\n",
+              "      border: none;\n",
+              "      border-radius: 50%;\n",
+              "      cursor: pointer;\n",
+              "      display: none;\n",
+              "      fill: #1967D2;\n",
+              "      height: 32px;\n",
+              "      padding: 0 0 0 0;\n",
+              "      width: 32px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert:hover {\n",
+              "      background-color: #E2EBFA;\n",
+              "      box-shadow: 0px 1px 2px rgba(60, 64, 67, 0.3), 0px 1px 3px 1px rgba(60, 64, 67, 0.15);\n",
+              "      fill: #174EA6;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert {\n",
+              "      background-color: #3B4455;\n",
+              "      fill: #D2E3FC;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert:hover {\n",
+              "      background-color: #434B5C;\n",
+              "      box-shadow: 0px 1px 3px 1px rgba(0, 0, 0, 0.15);\n",
+              "      filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));\n",
+              "      fill: #FFFFFF;\n",
+              "    }\n",
+              "  </style>\n",
+              "\n",
+              "      <script>\n",
+              "        const buttonEl =\n",
+              "          document.querySelector('#df-5c91c3fd-4ea1-4029-ac75-7f2d51d48b13 button.colab-df-convert');\n",
+              "        buttonEl.style.display =\n",
+              "          google.colab.kernel.accessAllowed ? 'block' : 'none';\n",
+              "\n",
+              "        async function convertToInteractive(key) {\n",
+              "          const element = document.querySelector('#df-5c91c3fd-4ea1-4029-ac75-7f2d51d48b13');\n",
+              "          const dataTable =\n",
+              "            await google.colab.kernel.invokeFunction('convertToInteractive',\n",
+              "                                                     [key], {});\n",
+              "          if (!dataTable) return;\n",
+              "\n",
+              "          const docLinkHtml = 'Like what you see? Visit the ' +\n",
+              "            '<a target=\"_blank\" href=https://colab.research.google.com/notebooks/data_table.ipynb>data table notebook</a>'\n",
+              "            + ' to learn more about interactive tables.';\n",
+              "          element.innerHTML = '';\n",
+              "          dataTable['output_type'] = 'display_data';\n",
+              "          await google.colab.output.renderOutput(dataTable, element);\n",
+              "          const docLink = document.createElement('div');\n",
+              "          docLink.innerHTML = docLinkHtml;\n",
+              "          element.appendChild(docLink);\n",
+              "        }\n",
+              "      </script>\n",
+              "    </div>\n",
+              "  </div>\n",
+              "  "
+            ]
+          },
+          "metadata": {},
+          "execution_count": 37
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X = wbc_df[['radius_mean', 'concave points_mean']]\n",
+        "y = wbc_df['diagnosis']\n",
+        "y = y.map({'M':1, 'B':0})"
+      ],
+      "metadata": {
+        "id": "4sGDejdH8_Xk"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.model_selection import train_test_split\n",
+        "\n",
+        "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)"
+      ],
+      "metadata": {
+        "id": "mxEYIG_9MjqV"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "The dataset is now loaded in your workspace and is split into 80% train and 20% test. The feature matrices are assigned to X_train and X_test, while the arrays of labels are assigned to y_train and y_test where class 1 corresponds to a malignant tumor and class 0 corresponds to a benign tumor. To obtain reproducible results, we also defined a variable called SEED which is set to 1.\n",
+        "\n",
+        "- Import DecisionTreeClassifier from sklearn.tree.\n",
+        "- Instantiate a DecisionTreeClassifier dt of maximum depth equal to 6.\n",
+        "- Fit dt to the training set.\n",
+        "- Predict the test set labels and assign the result to y_pred."
+      ],
+      "metadata": {
+        "id": "WgQ97T03O7C6"
+      }
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "YA_0IH94Mmwr"
+      },
+      "outputs": [],
+      "source": [
+        "# Import DecisionTreeClassifier from sklearn.tree\n",
+        "from ____.____ import ____\n",
+        "\n",
+        "# Instantiate a DecisionTreeClassifier 'dt' with a maximum depth of 6\n",
+        "dt = ____(____=____, random_state=SEED)\n",
+        "\n",
+        "# Fit dt to the training set\n",
+        "____.____(____, ____)\n",
+        "\n",
+        "# Predict test set labels\n",
+        "y_pred = ____.____(____)\n",
+        "print(y_pred[0:5])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Evaluate the classification tree\n",
+        "Now that you've fit your first classification tree, it's time to evaluate its performance on the test set. You'll do so using the accuracy metric which corresponds to the fraction of correct predictions made on the test set.\n",
+        "\n",
+        "The trained model dt from the previous exercise is loaded in your workspace along with the test set features matrix X_test and the array of labels y_test.\n",
+        "\n",
+        "- Import the function accuracy_score from sklearn.metrics.\n",
+        "- Predict the test set labels and assign the obtained array to y_pred.\n",
+        "- Evaluate the test set accuracy score of dt by calling accuracy_score() and assign the value to acc."
+      ],
+      "metadata": {
+        "id": "kPlk2miUVQeL"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Import accuracy_score\n",
+        "from ____.____ import ____\n",
+        "\n",
+        "# Predict test set labels\n",
+        "y_pred = ____.____(____)\n",
+        "\n",
+        "# Compute test set accuracy\n",
+        "acc = ____(____, ____)\n",
+        "print(\"Test set accuracy: {:.2f}\".format(acc))"
+      ],
+      "metadata": {
+        "id": "ZTfSr7ABN5FZ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Neural Networks\n",
+        "\n",
+        "Finally, we want to have a look at Neural Networks!"
+      ],
+      "metadata": {
+        "id": "QuZWFt_TgNvQ"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "o5yOkGTUF6Kp"
+      },
+      "source": [
+        " ## Setting up a network model and starting a first training\n",
+        "\n",
+        "In this and the following exercise, we are going to practise, how to set up a neural network model and perform a first training with this network.\n",
+        "We will use the DermaMNIST from the MedMNIST datasets, which you have seen last lecture."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "dnthk05cBlAV"
+      },
+      "outputs": [],
+      "source": [
+        "# Imports\n",
+        "import os\n",
+        "import sys\n",
+        "# from tqdm import trange\n",
+        "# from tqdm import tqdm\n",
+        "# from skimage.util import montage\n",
+        "import matplotlib.pyplot as plt\n",
+        "import numpy as np\n",
+        "import torch\n",
+        "import torch.nn as nn\n",
+        "import torch.optim as optim\n",
+        "import torch.utils.data as data\n",
+        "import torchvision.transforms as transforms\n",
+        "import torchvision as torchvision\n",
+        "\n",
+        "!pip install medmnist\n",
+        "import medmnist\n",
+        "from medmnist.dataset import PathMNIST, ChestMNIST, DermaMNIST, OCTMNIST, PneumoniaMNIST, RetinaMNIST, BreastMNIST, OrganMNISTAxial, OrganMNISTCoronal, OrganMNISTSagittal\n",
+        "from medmnist.evaluator import getAUC, getACC\n",
+        "from medmnist.info import INFO"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "MGpKZ1TFwfnL"
+      },
+      "outputs": [],
+      "source": [
+        "print(\"Version:\", medmnist.__version__)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "x6nPfDx8wiAR"
+      },
+      "outputs": [],
+      "source": [
+        "# various MedMNIST datasets\n",
+        "data_flag = 'dermamnist'\n",
+        "download = True\n",
+        "input_root = 'tmp_data/'\n",
+        "!mkdir 'tmp_data'\n",
+        "\n",
+        "flag_to_class = {\n",
+        "    \"pathmnist\": PathMNIST,\n",
+        "    \"chestmnist\": ChestMNIST,\n",
+        "    \"dermamnist\": DermaMNIST,\n",
+        "    \"octmnist\": OCTMNIST,\n",
+        "    \"pneumoniamnist\": PneumoniaMNIST,\n",
+        "    \"retinamnist\": RetinaMNIST,\n",
+        "    \"breastmnist\": BreastMNIST,\n",
+        "    \"organmnist_axial\": OrganMNISTAxial,\n",
+        "    \"organmnist_coronal\": OrganMNISTCoronal,\n",
+        "    \"organmnist_sagittal\": OrganMNISTSagittal,\n",
+        "}\n",
+        "\n",
+        "DataClass = flag_to_class[data_flag]\n",
+        "\n",
+        "info = INFO[data_flag]\n",
+        "task = info['task']\n",
+        "n_channels = info['n_channels']\n",
+        "n_classes = len(info['label'])\n",
+        "label_dict = info['label']\n",
+        "\n",
+        "print(f\"Info:\\n{info}\\n\")\n",
+        "print(f\"Task:\\n{task}\\n\")\n",
+        "print(f\"Channels:\\n{n_channels}\\n\")\n",
+        "print(f\"Number of classes:\\n{n_classes}\\n\")\n",
+        "print(f\"Label:\\n{label_dict}\\n\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "y2I6F49b8fRx",
+        "pycharm": {
+          "name": "#%% md\n"
+        }
+      },
+      "source": [
+        "## Defining the augmentations\n",
+        "\n",
+        "We now define the augmentations, in particular Resizing, Random Rotation and Normalizing."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "HjF-Aq9BF6K_",
+        "pycharm": {
+          "name": "#%%\n"
+        }
+      },
+      "outputs": [],
+      "source": [
+        "# Imagenet values\n",
+        "norm_mean = (0.4914)\n",
+        "norm_std = (0.2023)\n",
+        "\n",
+        "# define the transformaitons the images go through each time it is used for training\n",
+        "# includes augmentation AND normalization as described above\n",
+        "augmentation_train = transforms.Compose([\n",
+        "                                  # resize image to the network input size\n",
+        "                                  transforms.Resize((28,28)),\n",
+        "                                  # rotate the image with a certain angle range, randomly chosen\n",
+        "                                  transforms.RandomRotation(degrees=20),\n",
+        "                                  # convert the image into a tensor so it can be processed by the GPU\n",
+        "                                  transforms.ToTensor(),\n",
+        "                                  # normalize the image with the mean and std of ImageNet\n",
+        "                                  transforms.Normalize(norm_mean, norm_std),\n",
+        "                                   ])\n",
+        "\n",
+        "# no augmentation for the test data only resizing, conversion to tensor and normalization\n",
+        "augmentation_test = transforms.Compose([\n",
+        "                    transforms.Resize((28,28)),\n",
+        "                    transforms.ToTensor(),\n",
+        "                    transforms.Normalize(norm_mean, norm_std),\n",
+        "                    ])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "FGR6pIuMJsqK"
+      },
+      "source": [
+        "## Splitting up data\n",
+        "\n",
+        "Set up datasets for training, validation and testing"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "AHYTu04_yDvo"
+      },
+      "outputs": [],
+      "source": [
+        "# load the data\n",
+        "train_dataset = DataClass(root=input_root, split='train', transform=augmentation_train, download=download)\n",
+        "test_dataset = DataClass(root=input_root, split='test', transform=augmentation_test, download=download)\n",
+        "val_dataset = DataClass(root=input_root, split='val', transform=augmentation_test, download=download)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "zL9p3c52xpUB"
+      },
+      "outputs": [],
+      "source": [
+        "# Some detailed information about all splits\n",
+        "print(\"===================\")\n",
+        "print(train_dataset)\n",
+        "print(\"===================\")\n",
+        "print(val_dataset)\n",
+        "print(\"===================\")\n",
+        "print(test_dataset)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "zPZXPqSvKNyh"
+      },
+      "source": [
+        "## Create Dataloaders\n",
+        "\n",
+        "PyTorch provides template Dataloader classes for easy data handling, assigning according transforms and splits. You can find more information about how PyTorch handles datasets and data loading [here](https://pytorch.org/tutorials/beginner/basics/data_tutorial.html)."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "VUURp9J01EtJ"
+      },
+      "outputs": [],
+      "source": [
+        "BATCH_SIZE = 128\n",
+        "### encapsulate data into dataloader form\n",
+        "train_loader = data.DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)\n",
+        "val_loader = data.DataLoader(dataset=val_dataset, batch_size=BATCH_SIZE, shuffle=False)\n",
+        "test_loader = data.DataLoader(dataset=test_dataset, batch_size=BATCH_SIZE, shuffle=False)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "NMfm-GkQyFe3"
+      },
+      "outputs": [],
+      "source": [
+        "### the next() function returns the next item from the iterator.\n",
+        "batch_images, batch_labels = next(iter(train_loader))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "7O9BTWgOyIhK"
+      },
+      "outputs": [],
+      "source": [
+        "# show all 3 channels of image 10\n",
+        "print(batch_images[0].shape)\n",
+        "\n",
+        "fig = plt.figure(figsize=(5, 5))\n",
+        "plt.imshow(batch_images[11][0,:,:])\n",
+        "fig = plt.figure(figsize=(5, 5))\n",
+        "plt.imshow(batch_images[11][1,:,:])\n",
+        "fig = plt.figure(figsize=(5, 5))\n",
+        "plt.imshow(batch_images[11][2,:,:])\n",
+        "\n",
+        "### different color maps\n",
+        "### cmap='bone', cmap = 'summer', cmap = 'seismic'"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "collapsed": false,
+        "id": "3QclrDwU6j2B"
+      },
+      "source": [
+        "## Define a Convolutional Neural Network\n",
+        "\n",
+        "Pytorch makes it very easy to define a neural network. We have layers like Convolutions, ReLU non-linearity, Maxpooling etc. directly from [torch library](https://pytorch.org/docs/stable/nn.html).\n",
+        "\n",
+        "In this tutorial, we use The LeNet architecture introduced by LeCun et al. in their 1998 paper, [Gradient-Based Learning Applied to Document Recognition](http://yann.lecun.com/exdb/publis/pdf/lecun-01a.pdf). As the name of the paper suggests, the authors’ implementation of LeNet was used primarily for OCR and character recognition in documents. The LeNet architecture is straightforward and small, (in terms of memory footprint), making it perfect for teaching the basics of CNNs.\n",
+        "\n",
+        "To define a neural network in PyTorch one has to create a class inhereting from [torch.nn.Module](https://pytorch.org/docs/stable/generated/torch.nn.Module.html). Crucially, this class has to include the function forward() which defines which computation should be performed at every call given a batch of inputs."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "C4SswIxD6j2B",
+        "pycharm": {
+          "name": "#%%\n"
+        }
+      },
+      "outputs": [],
+      "source": [
+        "from torch import nn\n",
+        "import torch.nn.functional as F\n",
+        "device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')\n",
+        "\n",
+        "num_classes = 7\n",
+        "class LeNet(nn.Module):\n",
+        "    def __init__(self):\n",
+        "        super(LeNet, self).__init__()\n",
+        "\n",
+        "        self.conv1 = nn.Conv2d(in_channels=1, out_channels=6, kernel_size=(5,5), padding=2)\n",
+        "        self.nonlin1 = nn.ReLU()\n",
+        "        self.pool1 = nn.MaxPool2d(kernel_size=(2,2))\n",
+        "\n",
+        "        self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=(5,5))\n",
+        "        self.nonlin2 = nn.ReLU()\n",
+        "        self.pool2 = nn.MaxPool2d(kernel_size=(2,2))\n",
+        "\n",
+        "        self.fc1 = nn.Linear(in_features=16*5*5, out_features=120)\n",
+        "        self.nonlin3 = nn.ReLU()\n",
+        "        self.fc2 = nn.Linear(in_features=120, out_features=84)\n",
+        "        self.nonlin4 = nn.ReLU()\n",
+        "        self.fc3 = nn.Linear(in_features=84, out_features=num_classes)\n",
+        "        self.nonlin5 = nn.ReLU()\n",
+        "\n",
+        "    def forward(self, x):\n",
+        "\n",
+        "        x = self.conv1(x)\n",
+        "        x = self.nonlin1(x)\n",
+        "        x = self.pool1(x)\n",
+        "\n",
+        "        x = self.conv2(x)\n",
+        "        x = self.nonlin2(x)\n",
+        "        x = self.pool2(x)\n",
+        "\n",
+        "        x = x.view(-1, self.num_flat_features(x))\n",
+        "\n",
+        "        x = self.fc1(x)\n",
+        "        x = self.nonlin3(x)\n",
+        "        x = self.fc2(x)\n",
+        "        x = self.nonlin4(x)\n",
+        "        x = self.fc3(x)\n",
+        "        x = self.nonlin5(x)\n",
+        "\n",
+        "        return x\n",
+        "\n",
+        "    def num_flat_features(self, x):\n",
+        "\n",
+        "        size = x.size()[1:]\n",
+        "        num_features = 1\n",
+        "        for s in size:\n",
+        "            num_features *= s\n",
+        "        return num_features\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "XeYDXWn0pBF6"
+      },
+      "source": [
+        "You can use torchsummary to print out the architecture of your model given a certain input."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "gpD04oeOpBF6"
+      },
+      "outputs": [],
+      "source": [
+        "from torchsummary import summary\n",
+        "\n",
+        "model = LeNet()\n",
+        "model.to(device)\n",
+        "\n",
+        "summary(model, input_size=(1,28,28), batch_size=127)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "9Hf87hhWCaqp"
+      },
+      "source": [
+        "## Exercise\n",
+        "\n",
+        "Create a neural network capable of processing the image tensor 'img', which has only one channel. The network should contain at least one convolutional layer and one additional fully connected layer. Pay attention that within the fully connected layer the output dimension of the last convolutional layer has to fit the input dimension. Additionally, the output dimension of the fully connected layer before 'fc_fin' has to match the required input dimension of 'fc_fin'.\n",
+        "\n",
+        "Some hints:\n",
+        "\n",
+        "- Have a look at how LeNet is implemented above. Many concepts can be copied.\n",
+        "- Focus on using the PyTorch's Linear, Conv2d, MaxPool2d and ReLU layers and the .view() function. You can find detailed information on these components in [PyTorch's documentation](https://pytorch.org/docs/stable/index.html).\n",
+        "- Batch size does not have to be considered when designing the neural networks. PyTorch adapts the calculations automatically when provided with different batch sizes."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "3ia2S8hrDCIL"
+      },
+      "outputs": [],
+      "source": [
+        "img = torch.rand((1, 1, 200, 200))\n",
+        "\n",
+        "output_dim = 6\n",
+        "\n",
+        "class LeNet2(nn.Module):\n",
+        "    def __init__(self):\n",
+        "        super(LeNet2, self).__init__()\n",
+        "\n",
+        "        # --------------------\n",
+        "\n",
+        "        ########## Insert your layers here ##########\n",
+        "\n",
+        "        # --------------------\n",
+        "\n",
+        "        self.fc_fin = nn.Linear(in_features=48, out_features=output_dim)\n",
+        "\n",
+        "    def forward(self, x):\n",
+        "\n",
+        "        # --------------------\n",
+        "\n",
+        "        ########## Insert your forward pass here ##########\n",
+        "\n",
+        "        # --------------------\n",
+        "\n",
+        "        x = self.fc_fin(x)\n",
+        "\n",
+        "        return x\n",
+        "\n",
+        "    def num_flat_features(self, x):\n",
+        "        size = x.size()[1:]\n",
+        "        num_features = 1\n",
+        "        for s in size:\n",
+        "            num_features *= s\n",
+        "        return num_features\n",
+        "\n",
+        "model = LeNet2()\n",
+        "\n",
+        "output = model(img)\n",
+        "\n",
+        "if output.size(1) == 6:\n",
+        "    print('The correct output size has been generated.')\n",
+        "else:\n",
+        "    print('The generated output size is not correct')"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "TE_R_SSWF6Lb"
+      },
+      "source": [
+        "## Define a Loss function\n",
+        "\n",
+        "Let's use a Classification Cross-Entropy loss.\n",
+        "\n",
+        "$H_{y'} (y) := - \\sum_{i} y_{i}' \\log (y_i)$\n",
+        "\n",
+        "### Median Frequency Balancing\n",
+        "There are datasets which have a large imbalance in the amount of label occurrence. A prediction would be therefore biased towards stronger represented classes. As a solution, we use **Median Frequency Balancing**. Essentially this tasks the optimizer to weight examples of rare cases more highly than examples of common cases that are processed more frequently."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "zy8HJZDRvdB1"
+      },
+      "outputs": [],
+      "source": [
+        "# get the class labels of each image\n",
+        "class_labels = train_dataset.labels\n",
+        "# get the number of different classes\n",
+        "num_classes = np.max(class_labels)+1\n",
+        "# empty array for counting instance of each class\n",
+        "count_labels = np.zeros(num_classes)\n",
+        "# empty array for weights of each class\n",
+        "class_weights = np.zeros(num_classes)\n",
+        "\n",
+        "# populate the count array\n",
+        "for l in class_labels:\n",
+        "    count_labels[l] += 1\n",
+        "\n",
+        "# get median count\n",
+        "median_freq = np.median(count_labels)\n",
+        "\n",
+        "# calculate the weigths\n",
+        "for i in range(num_classes):\n",
+        "    class_weights[i] = median_freq/count_labels[i]\n",
+        "\n",
+        "# print the weights\n",
+        "for i in range(num_classes):\n",
+        "    print(\"class\", i, \":\", class_weights[i])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "4pPUGMq3NCnP"
+      },
+      "source": [
+        "Now we define the loss function with the weights"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "j-Q72RJ-M84P"
+      },
+      "outputs": [],
+      "source": [
+        "class_weights = torch.FloatTensor(class_weights).to(device)\n",
+        "criterion = nn.CrossEntropyLoss(weight = class_weights)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "JRBdC31sF6Li"
+      },
+      "source": [
+        "## Define the Optimizer\n",
+        "\n",
+        "The most common and effective optimizer currently used is **Adam: Adaptive Moments**. You can check out [the paper on it](https://arxiv.org/abs/1412.6980) for more information.\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "pmMjYnCjF6Lk"
+      },
+      "outputs": [],
+      "source": [
+        "import torch.optim as optim\n",
+        "\n",
+        "# now lets go back to the initial LeNet architecture\n",
+        "net = LeNet()\n",
+        "net = net.to(device)\n",
+        "\n",
+        "# and define an optimizer\n",
+        "optimizer = optim.Adam(net.parameters(), lr=1e-5)\n",
+        "print(net)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "2oGr-AfqF6Ln"
+      },
+      "source": [
+        "## Network training\n",
+        "\n",
+        "After everything has been set up, we can now start an actual training on our dataset. To save time, for the moment we will run only ten epochs. Within the training, our dataloader is used to load a batch from our dataset. This batch is forwarded to the model. The corresponding output is compared against its labels with the chosen loss function, here called 'criterion'. Then, the loss values are backpropagated through the whole model.\n",
+        "\n",
+        "After, the training step a validation step is performed. Here the network is set to .eval() mode in which its weights are not being updated and consequently backprogagation is not needed."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "51fdrcX_vdB2"
+      },
+      "outputs": [],
+      "source": [
+        "num_epochs = 10\n",
+        "\n",
+        "for epoch in range(num_epochs):\n",
+        "\n",
+        "    ##### Training loop #####\n",
+        "    running_loss_train = 0.0\n",
+        "    num_correct_train = 0\n",
+        "    num_all_train = 0\n",
+        "\n",
+        "    for i, data in enumerate(train_loader):\n",
+        "\n",
+        "        # get the inputs\n",
+        "        inputs, labels = data\n",
+        "        inputs, labels = inputs.to(device), torch.squeeze(labels).to(device)\n",
+        "\n",
+        "        # set model to training mode\n",
+        "        net.train()\n",
+        "\n",
+        "        # set the parameter gradients to zero\n",
+        "        optimizer.zero_grad()\n",
+        "\n",
+        "        # calculate the network output and its loss\n",
+        "        outputs = net(inputs[:,0:1,:,:])\n",
+        "        loss = criterion(outputs, labels)\n",
+        "\n",
+        "        # During training we need to backpropagate the loss and conduct an optimization step\n",
+        "        loss.backward()\n",
+        "        optimizer.step()\n",
+        "\n",
+        "        # compute running loss and accuracy\n",
+        "        running_loss_train += loss.item()\n",
+        "\n",
+        "        _, predicted = torch.max(outputs, 1)\n",
+        "        num_correct_train += torch.sum(predicted == labels).item()\n",
+        "        num_all_train += labels.size()[0]\n",
+        "\n",
+        "        training_loss = running_loss_train / num_all_train\n",
+        "        training_accuracy = num_correct_train / num_all_train\n",
+        "\n",
+        "\n",
+        "    ##### Validation loop #####\n",
+        "    running_loss_val = 0.0\n",
+        "    num_correct_val = 0\n",
+        "    num_all_val = 0\n",
+        "\n",
+        "    for i, data in enumerate(val_loader):\n",
+        "\n",
+        "        # get the inputs\n",
+        "        inputs, labels = data\n",
+        "        inputs, labels = inputs.to(device), torch.squeeze(labels).to(device)\n",
+        "\n",
+        "        # set model to evaluation mode\n",
+        "        net.eval()\n",
+        "\n",
+        "        # calculate the network output and its loss\n",
+        "        outputs = net(inputs[:,0:1,:,:])\n",
+        "        loss = criterion(outputs, labels)\n",
+        "\n",
+        "        # compute running loss and accuracy\n",
+        "        running_loss_val += loss\n",
+        "\n",
+        "        _, predicted = torch.max(outputs, 1)\n",
+        "        num_correct_val += torch.sum(predicted == labels).item()\n",
+        "        num_all_val += labels.size()[0]\n",
+        "\n",
+        "        validation_loss = running_loss_val / num_all_val\n",
+        "        validation_accuracy = num_correct_val / num_all_val\n",
+        "\n",
+        "    print('Epoch: {}, training loss: {:.4f}, training accuracy: {}%, validation loss: {:.4f}, validation accuracy: {}%, '.format(epoch+1, training_loss, np.round(training_accuracy, 3) * 100, validation_loss, np.round(validation_accuracy, 3) * 100))\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "tIbJukXZA7ap"
+      },
+      "source": [
+        "## Exercise\n",
+        "After performing the training and validation of your system you are now ready to perform the inference on your test set. Implement the inference step for out dataset. Hint: It will look very similar to one the previous loops (train or validation)."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "RCAeaw8hvdB3"
+      },
+      "outputs": [],
+      "source": [
+        "running_loss_test = 0.0\n",
+        "num_correct_test = 0\n",
+        "num_all_test = 0\n",
+        "\n",
+        "for i, data in enumerate(test_loader):\n",
+        "\n",
+        "    ########## Implement the data loading and prediction on the test set ##########\n",
+        "\n",
+        "    # your code here\n",
+        "\n",
+        "    ########## ------------------------------- ##########\n",
+        "\n",
+        "    _, predicted = torch.max(outputs, 1)\n",
+        "    num_correct_test += torch.sum(predicted == labels).item()\n",
+        "    num_all_test += labels.size()[0]\n",
+        "    running_loss_test += loss.item()\n",
+        "\n",
+        "    test_loss = running_loss_test / num_all_test\n",
+        "    test_accuracy = num_correct_test / num_all_test\n",
+        "\n",
+        "print('Loss for test set is {}'.format(test_loss))\n",
+        "print('Test accuracy of the network: {}%'.format(np.round(test_accuracy, 3)*100))"
+      ]
+    }
+  ]
+}
